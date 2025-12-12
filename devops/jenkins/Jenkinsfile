@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_REPO = "raginimetlapalli/social-media-engagement"
+        KUBECONFIG_ID = "k8s-config"
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Test Backend') {
+            steps {
+                script {
+                    // Optimized: Use Docker BuildKit caching.
+                    // This builds the 'test' stage. If 'requirements.txt' is unchanged, 
+                    // the 'pip install' layer is retrieved from cache instantly.
+                    sh 'docker build --target test -t backend-test ./backend'
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    sh 'docker build -t ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG} ./frontend'
+                    sh 'docker build -t ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} ./backend'
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withDockerRegistry(credentialsId: 'dockerhub-creds', url: '') {
+                    sh 'docker push ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG}'
+                    sh 'docker push ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG}'
+
+                    // Also push 'latest' so Ansible default works, or for general ease of use
+                    sh 'docker tag ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG} ${DOCKER_HUB_REPO}-frontend:latest'
+                    sh 'docker tag ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} ${DOCKER_HUB_REPO}-backend:latest'
+                    sh 'docker push ${DOCKER_HUB_REPO}-frontend:latest'
+                    sh 'docker push ${DOCKER_HUB_REPO}-backend:latest'
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                     withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
+                         sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/backend-deployment.yaml"
+                         sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/frontend-deployment.yaml"
+                         
+                         sh 'kubectl apply -f devops/kubernetes/backend-deployment.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/frontend-deployment.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/backend-service.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/frontend-service.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/backend-hpa.yaml'
+                         
+                         // VERIFICATION: Wait for pods to be ready (prevents false success)
+                         echo "Waiting for Backend to allow traffic (Max 20 mins for large model download)..."
+                         sh 'kubectl rollout status deployment/social-media-backend --timeout=1200s'
+                         
+                         echo "Waiting for Frontend to be ready..."
+                         sh 'kubectl rollout status deployment/social-media-frontend --timeout=300s'
+                    }
+                }
+            }
+        }
+
+        stage('Deploy with Ansible') {
+            steps {
+                script {
+                     // Run Ansible to pull new images and restart containers
+                     // We use '--tags deploy' to skip checking for Docker installation (efficiency)
+                     // We inject the SSH password safely from Jenkins Credentials
+                     withCredentials([string(credentialsId: 'host-ssh-pass', variable: 'SSH_PASS')]) {
+                         dir('devops/ansible') {
+                             sh "ansible-playbook -i inventory.ini playbook.yaml --tags 'deploy' --extra-vars 'image_tag=${IMAGE_TAG} ansible_ssh_pass=${SSH_PASS} ansible_sudo_pass=${SSH_PASS}'"
+                         }
+                     }
+                }
+            }
+        }
+    }
+}
