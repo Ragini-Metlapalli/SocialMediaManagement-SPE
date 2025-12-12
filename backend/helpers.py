@@ -32,14 +32,14 @@ def load_nlp_models():
     
     # Check if all lite files exist
     if all(os.path.exists(f) for f in lite_files.values()):
-        print("⚡ Found Lite Models! Switching to efficiency mode.")
+        print("Found Lite Models! Switching to efficiency mode.")
         models = {"type": "lite"}
         for key, fname in lite_files.items():
             print(f"Loading {fname}...")
             models[key] = joblib.load(fname)
         return models
 
-    print("🐢 Lite models not found. Attempting to load Heavy Models...")
+    print("Lite models not found. Attempting to load Heavy Models...")
     try:
         from transformers import pipeline
         from detoxify import Detoxify
