@@ -14,17 +14,17 @@ const HomePage = () => {
 
             <div className="text-center z-10 max-w-4xl">
                 <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
-                    Predict Perfect Time to Post
+                    Social Media Optimizer
                 </h1>
                 <p className="text-xl text-gray-300 mb-10 leading-relaxed">
-                    Unlock the power of <span className="text-blue-400 font-semibold">AI & Deep NLP</span> to maximize your post engagement.
+                    Predict the Perfect Time to Post.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12 max-w-2xl mx-auto">
                     <div className="p-6 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm hover:bg-white/10 transition">
                         <TrendingUp className="w-10 h-10 text-green-400 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold mb-2">Max Engagement</h3>
-                        <p className="text-sm text-gray-400">Predict the exact day and hour to get maximum likes and shares.</p>
+                        {/* <p className="text-sm text-gray-400">Predict the exact day and hour to get maximum likes and shares.</p> */}
                     </div>
                     <div className="p-6 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm hover:bg-white/10 transition">
                         <BarChart2 className="w-10 h-10 text-blue-400 mx-auto mb-4" />

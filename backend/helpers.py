@@ -17,11 +17,21 @@ TOPIC_OPTIONS = [
 import os
 import joblib
 
+import logging
+from pythonjsonlogger import jsonlogger
+
+# Setup JSON Logger
+logger = logging.getLogger("backend")
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(message)s %(module)s')
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+logger.setLevel(logging.INFO)
+
 def load_nlp_models():
     """
     Loads NLP models. 
     Prioritizes LOCAL Lite models (.joblib) if present.
-    Falls back to Heavy HuggingFace models.
     """
     lite_files = {
         "vectorizer": "vectorizer.joblib",
@@ -32,14 +42,16 @@ def load_nlp_models():
     
     # Check if all lite files exist
     if all(os.path.exists(f) for f in lite_files.values()):
-        print("Found Lite Models! Switching to efficiency mode.")
+        logger.info("Found Lite Models", extra={"type": "lite", "status": "loading"})
         models = {"type": "lite"}
         for key, fname in lite_files.items():
-            print(f"Loading {fname}...")
+            logger.info(f"Loading model: {fname}", extra={"model": key})
             models[key] = joblib.load(fname)
+        
+        logger.info("All Lite Models Loaded", extra={"status": "success"})
         return models
 
-    print("Lite models not found. Attempting to load Heavy Models...")
+    print("🐢 Lite models not found. Attempting to load Heavy Models...")
     try:
         from transformers import pipeline
         from detoxify import Detoxify
@@ -116,7 +128,7 @@ def extract_caption_features(caption, models):
         sentiment = infer_sentiment(caption, models["sentiment"])
         toxicity_score = infer_toxicity(caption, models["toxicity"]) * 100 # Scaling logic preserved
 
-    return {
+    inference_result = {
         "topic": topic,
         "language": language,
         "content_length": len(caption),
@@ -129,6 +141,16 @@ def extract_caption_features(caption, models):
         
         "toxicity_score": toxicity_score * 100 if models.get("type") == "lite" else toxicity_score # Scaling
     }
+
+    # Log Inference (Structured)
+    logger.info("Content Analysis Complete", extra={
+        "topic": inference_result["topic"],
+        "sentiment": inference_result["sentiment_category"],
+        "toxicity": inference_result["toxicity_score"],
+        "length": inference_result["content_length"]
+    })
+
+    return inference_result
     
 # ... (Keep predict_best_time_logic as is, it consumes the dict) ...
 def predict_best_time_logic(model, req, nlp_features):

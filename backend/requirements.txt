@@ -5,3 +5,4 @@ numpy<2.0.0
 joblib
 scikit-learn==1.2.2
 lightgbm
+python-json-logger

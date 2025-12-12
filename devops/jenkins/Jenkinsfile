@@ -61,6 +61,7 @@ pipeline {
                          sh 'kubectl apply -f devops/kubernetes/backend-service.yaml'
                          sh 'kubectl apply -f devops/kubernetes/frontend-service.yaml'
                          sh 'kubectl apply -f devops/kubernetes/backend-hpa.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/logging/'
                          
                          // VERIFICATION: Wait for pods to be ready (prevents false success)
                          echo "Waiting for Backend to allow traffic (Max 20 mins for large model download)..."

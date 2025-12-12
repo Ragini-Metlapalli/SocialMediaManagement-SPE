@@ -9,12 +9,12 @@ from contextlib import asynccontextmanager
 from helpers import (
     load_nlp_models,
     extract_caption_features,
-    predict_best_time_logic
+    predict_best_time_logic,
+    logger  # Import Logger
 )
 
 # ---------------------------------------------------------
 # GLOBAL STATE
-# ---------------------------------------------------------
 # ---------------------------------------------------------
 model = None
 nlp_pipelines = {}
@@ -25,18 +25,17 @@ async def lifespan(app: FastAPI):
     global model
     try:
         model = joblib.load("best_time_model.pkl")
-        print(" Main Model loaded successfully.")
+        logger.info("Main Model loaded successfully", extra={"component": "model_loader"})
     except Exception as e:
-        print(f" Failed to load model: {e}")
-        # We might want to exit here if critical, but for now we print error
+        logger.error("Failed to load model", extra={"error": str(e)})
 
     # Load Deep Learning Models
     global nlp_pipelines
     try:
         nlp_pipelines = load_nlp_models()
-        print(" NLP Models loaded successfully.")
+        logger.info("NLP Models loaded successfully", extra={"component": "nlp_loader"})
     except Exception as e:
-        print(f" Failed to load NLP models: {e}")
+        logger.error("Failed to load NLP models", extra={"error": str(e)})
 
     yield
     # Cleanup if needed
@@ -79,15 +78,20 @@ class PredictionResponse(BaseModel):
 # ---------------------------------------------------------
 @app.get("/")
 def read_root():
+    logger.info("Health check endpoint called")
     return {"status": "healthy", "message": "Social Media Engagement API is running with NLP Power"}
-
-
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
     if not model:
+        logger.critical("Model not loaded during prediction request")
         raise HTTPException(status_code=500, detail="Model not loaded")
     
+    logger.info("Received prediction request", extra={
+        "platform": request.platform,
+        "caption_length": len(request.caption)
+    })
+
     try:
         # 1. Extract NLP Features
         nlp_features = extract_caption_features(request.caption, nlp_pipelines)
@@ -99,6 +103,12 @@ def predict(request: PredictionRequest):
             nlp_features=nlp_features
         )
 
+        logger.info("Prediction successful", extra={
+            "best_day": best_day,
+            "best_hour": best_hour,
+            "engagement": max_eng
+        })
+
         return {
             "best_day": best_day,
             "best_hour": best_hour,
@@ -109,4 +119,5 @@ def predict(request: PredictionRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        logger.error("Prediction failed", extra={"error": str(e)})
         raise HTTPException(status_code=500, detail=str(e))
