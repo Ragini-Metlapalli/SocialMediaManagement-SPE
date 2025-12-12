@@ -15,11 +15,6 @@
     state: directory
     mode: '0755'
 
-- name: Copy ELK Configuration
-  copy:
-    src: "{{ playbook_dir }}/../../devops/elk"
-    dest: /opt/social-media-app/devops/
-
 - name: Force Clean Conflicting Containers
   shell: "docker rm -f social-media-backend social-media-frontend elasticsearch logstash kibana || true"
   ignore_errors: yes

@@ -15,8 +15,3 @@
   command: minikube start --driver=docker
   become: false
   ignore_errors: yes
-
-- name: Deploy Monitoring Stack (Prometheus & Grafana)
-  command: "kubectl apply -f {{ playbook_dir }}/../kubernetes/monitoring/"
-  become: false
-  ignore_errors: yes
