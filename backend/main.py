@@ -54,10 +54,10 @@ def init_db():
             );
         """)
         DB_CONNECTION.commit()
-        logger.info("✅ Database connected and table verified.")
+        logger.info("Database connected and table verified.")
         cursor.close()
     except Exception as e:
-        logger.critical(f"❌ Database connection failed: {str(e)}")
+        logger.critical(f" Database connection failed: {str(e)}")
         # We generally don't want to crash the whole app if DB is down, 
         # but for this specific request context, strict failure might be desired.
         # usually just logging error is safer for hybrid setups.
