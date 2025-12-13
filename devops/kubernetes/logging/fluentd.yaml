@@ -48,6 +48,7 @@ spec:
         k8s-app: fluentd-logging
     spec:
       serviceAccountName: fluentd
+      # IMPORTANT: If your cluster uses a different control plane taint, adjust this
       tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
@@ -82,6 +83,10 @@ spec:
         - name: config-volume
           mountPath: /fluentd/etc/fluent.conf
           subPath: fluent.conf
+        #  FIX: Mount the directory where the actual raw container logs are stored
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
 
       terminationGracePeriodSeconds: 30
 
@@ -92,3 +97,7 @@ spec:
       - name: config-volume
         configMap:
           name: fluentd-config
+      #  FIX: Add the host path for raw container logs
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
