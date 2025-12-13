@@ -12,7 +12,58 @@ from helpers import (
     predict_best_time_logic,
     logger  # Import Logger
 )
+import psycopg2
+import os
 
+# ---------------------------------------------------------
+# DATABASE CONNECTIVITY
+# ---------------------------------------------------------
+DB_CONNECTION = None
+
+def init_db():
+    """
+    Connects to Postgres using Standard Environment Variables.
+    Secrets are injected by Kubernetes (Fetched from Vault by Jenkins).
+    """
+    global DB_CONNECTION
+    try:
+        # Standard Postgres Env Vars (Injected from Vault via K8s Secret)
+        USER = os.getenv("DB_USER", "postgres")
+        PASSWORD = os.getenv("DB_PASS", "postgres")
+        HOST = os.getenv("DB_HOST", "postgres")
+        PORT = os.getenv("DB_PORT", "5432")
+        DB_NAME = os.getenv("DB_NAME", "prediction_db")
+
+        logger.info(f"Connecting to DB at {HOST}:{PORT} as {USER}...")
+
+        DB_CONNECTION = psycopg2.connect(
+            user=USER,
+            password=PASSWORD,
+            host=HOST,
+            port=PORT,
+            database=DB_NAME
+        )
+        cursor = DB_CONNECTION.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS prediction_history (
+                id SERIAL PRIMARY KEY,
+                platform VARCHAR(50),
+                caption TEXT,
+                predicted_engagement FLOAT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        DB_CONNECTION.commit()
+        logger.info("✅ Database connected and table verified.")
+        cursor.close()
+    except Exception as e:
+        logger.critical(f"❌ Database connection failed: {str(e)}")
+        # We generally don't want to crash the whole app if DB is down, 
+        # but for this specific request context, strict failure might be desired.
+        # usually just logging error is safer for hybrid setups.
+
+
+# ---------------------------------------------------------
 # GLOBAL STATE
 # ---------------------------------------------------------
 model = None
@@ -35,6 +86,9 @@ async def lifespan(app: FastAPI):
         logger.info("NLP Models loaded successfully", extra={"component": "nlp_loader"})
     except Exception as e:
         logger.error("Failed to load NLP models", extra={"error": str(e)})
+
+    # Initialize Database
+    init_db()
 
     yield
     # Cleanup if needed
@@ -105,8 +159,20 @@ def predict(request: PredictionRequest):
         logger.info("Prediction successful", extra={
             "best_day": best_day,
             "best_hour": best_hour,
-            "engagement": max_eng
         })
+
+        # Log to Database (Async-ish)
+        if DB_CONNECTION:
+            try:
+                cur = DB_CONNECTION.cursor()
+                cur.execute(
+                    "INSERT INTO prediction_history (platform, caption, predicted_engagement) VALUES (%s, %s, %s)",
+                    (request.platform, request.caption, float(max_eng))
+                )
+                DB_CONNECTION.commit()
+                cur.close()
+            except Exception as e:
+                logger.error("Failed to write to DB", extra={"error": str(e)})
 
         return {
             "best_day": best_day,

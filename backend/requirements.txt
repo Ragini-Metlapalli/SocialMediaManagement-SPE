@@ -6,3 +6,4 @@ joblib
 scikit-learn==1.2.2
 lightgbm
 python-json-logger
+psycopg2-binary
