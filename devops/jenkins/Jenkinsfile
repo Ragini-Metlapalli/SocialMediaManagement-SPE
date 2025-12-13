@@ -80,28 +80,47 @@ pipeline {
                                  """
                              }
                          }
-
+                         
                          // STEP 3: FETCH FROM VAULT & INJECT INTO K8S
-                         withCredentials([string(credentialsId: 'vault-password', variable: 'VAULT_TOKEN')]) {
-                             sh """
-                                 echo "Fetching secrets from Vault (secret/postgres)..."
-                                 # authenticated fetch
-                                 DB_USER=\$(DB_USER=$(kubectl exec deployment/vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=$VAULT_TOKEN vault kv get -field=username secret/postgres))
-                                 DB_PASS=\$(kubectl exec deployment/vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$VAULT_TOKEN vault kv get -field=password secret/postgres)
-                                 DB_HOST=\$(kubectl exec deployment/vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$VAULT_TOKEN vault kv get -field=host secret/postgres)
-                                 DB_PORT=\$(kubectl exec deployment/vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$VAULT_TOKEN vault kv get -field=port secret/postgres)
-                                 DB_NAME=\$(kubectl exec deployment/vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$VAULT_TOKEN vault kv get -field=dbname secret/postgres)
+			withCredentials([string(credentialsId: 'vault-password', variable: 'VAULT_TOKEN')]) {
+			    sh """
+				echo "Fetching secrets from Vault (secret/postgres)..."
 
-                                 echo "Creating Kubernetes Secret 'db-secrets'..."
-                                 kubectl create secret generic db-secrets \\
-                                     --from-literal=username=\$DB_USER \\
-                                     --from-literal=password=\$DB_PASS \\
-                                     --from-literal=host=\$DB_HOST \\
-                                     --from-literal=port=\$DB_PORT \\
-                                     --from-literal=dbname=\$DB_NAME \\
-                                     --dry-run=client -o yaml | kubectl apply -f -
-                             """
-                         }
+				DB_USER=\$(kubectl exec deployment/vault -- \
+				  env VAULT_ADDR=http://127.0.0.1:8200 \
+				      VAULT_TOKEN=\$VAULT_TOKEN \
+				  vault kv get -field=username secret/postgres)
+
+				DB_PASS=\$(kubectl exec deployment/vault -- \
+				  env VAULT_ADDR=http://127.0.0.1:8200 \
+				      VAULT_TOKEN=\$VAULT_TOKEN \
+				  vault kv get -field=password secret/postgres)
+
+				DB_HOST=\$(kubectl exec deployment/vault -- \
+				  env VAULT_ADDR=http://127.0.0.1:8200 \
+				      VAULT_TOKEN=\$VAULT_TOKEN \
+				  vault kv get -field=host secret/postgres)
+
+				DB_PORT=\$(kubectl exec deployment/vault -- \
+				  env VAULT_ADDR=http://127.0.0.1:8200 \
+				      VAULT_TOKEN=\$VAULT_TOKEN \
+				  vault kv get -field=port secret/postgres)
+
+				DB_NAME=\$(kubectl exec deployment/vault -- \
+				  env VAULT_ADDR=http://127.0.0.1:8200 \
+				      VAULT_TOKEN=\$VAULT_TOKEN \
+				  vault kv get -field=dbname secret/postgres)
+
+				echo "Creating Kubernetes Secret 'db-secrets'..."
+				kubectl create secret generic db-secrets \\
+				    --from-literal=username=\$DB_USER \\
+				    --from-literal=password=\$DB_PASS \\
+				    --from-literal=host=\$DB_HOST \\
+				    --from-literal=port=\$DB_PORT \\
+				    --from-literal=dbname=\$DB_NAME \\
+				    --dry-run=client -o yaml | kubectl apply -f -
+			    """
+			}
 
                          // STEP 4: DEPLOY APPLICATIONS
                          sh 'kubectl apply -f devops/kubernetes/postgres-pvc.yaml'
